@@ -1,4 +1,4 @@
-/* WARNING: Do not include any other libraries here,
+ /* WARNING: Do not include any other libraries here,
  * otherwise you will get an error while running test.py
  * You can still use printf for debugging without including
  * <stdio.h>, although you might get a compiler warning. In general,
@@ -19,7 +19,7 @@
  * Difficulty: 1
  */
 int bitAnd(int x, int y) {
-    return 2;
+    return ~((~x)|(~y));
 }
 
 /*
@@ -30,7 +30,7 @@ int bitAnd(int x, int y) {
  *   Difficulty: 1
  */
 int bitXor(int x, int y) {
-    return 2;
+    return ~(~x&~y)&~(x&y) ;
 }
 
 /*
@@ -50,7 +50,10 @@ int bitXor(int x, int y) {
  *   1 if x and y have the same sign , 0 otherwise.
  */
 int samesign(int x, int y) {
-    return 2;
+    if(!(x&&y))return (!x)&&(!y);
+    int x_sign=(x>>31)&1;
+    int y_sign=(y>>31)&1;
+    return !(x_sign^y_sign);
 }
 
 /*
@@ -63,7 +66,22 @@ int samesign(int x, int y) {
  *   Difficulty: 4
  */
 int logtwo(int v) {
-    return 2;
+    int b16=(v>>16)>0;
+    int r16=b16<<4;
+    v=v>>r16;
+    int b8=(v>>8)>0;
+    int r8=b8<<3;
+    v=v>>r8;
+    int b4=(v>>4)>0;
+    int r4=b4<<2;
+    v=v>>r4;
+    int b2=(v>>2)>0;
+    int r2=b2<<1;
+    v=v>>r2;
+    int b1=(v>>1)>0;
+    int r1=b1;
+    v=v>>r1;
+    return r16|r8|r4|r2|r1;
 }
 
 /*
@@ -76,7 +94,15 @@ int logtwo(int v) {
  *    Difficulty: 2
  */
 int byteSwap(int x, int n, int m) {
-    return 2;
+    n=n<<3;
+    m=m<<3;
+    int n_byte=(x>>n)&0xFF;
+    int m_byte=(x>>m)&0xFF;
+    int clear=~((0xFF<<n)^(0xFF<<m));
+    x=x&clear;
+    x=x|(m_byte<<n);
+    x=x|(n_byte<<m);
+    return x;
 }
 
 /*
@@ -88,7 +114,15 @@ int byteSwap(int x, int n, int m) {
  *   Difficulty: 3
  */
 unsigned reverse(unsigned v) {
-    return 2;
+    unsigned res=0;
+    res+=(v&1)<<31;
+    unsigned i=1;
+    while(i&31){
+        unsigned r=(v>>i)&1;
+        res+=r<<(31-i);
+        i=i+1;
+    }
+    return res;
 }
 
 /*
@@ -100,7 +134,8 @@ unsigned reverse(unsigned v) {
  *   Difficulty: 3
  */
 int logicalShift(int x, int n) {
-    return 2;
+    int mask=~((~0<<1)<<(31+(~n+1)));
+    return (x>>n)&mask;
 }
 
 /*
@@ -111,8 +146,18 @@ int logicalShift(int x, int n) {
  *   Max ops: 50
  *   Difficulty: 4
  */
-int leftBitCount(int x) {
-    return 2;
+int leftBitCount(int x) { 
+    int r16=(!~(x>>16))<<4;
+    x=x<<r16;
+    int r8=(!~(x>>24))<<3;
+    x=x<<r8;
+    int r4=(!~(x>>28))<<2;
+    x=x<<r4;
+    int r2=(!~(x>>30))<<1;
+    x=x<<r2;
+    int r1=(x>>31)&1;
+    x=x<<r1;
+    return (r16|r8|r4|r2|r1)+((x>>31)&1);
 }
 
 /*
@@ -124,7 +169,30 @@ int leftBitCount(int x) {
  *   Difficulty: 4
  */
 unsigned float_i2f(int x) {
-    return 2;
+    unsigned sign=x&0x80000000;
+    unsigned co=x;
+    if(x==0)return 0;
+    if(sign)co=-co;
+    unsigned temp=co;
+    int e=0;
+    while(temp>>1){
+        temp=temp>>1;
+        e++;
+    }
+    if(e<24){
+        unsigned fra=(co<<(23-e))&0x7FFFFF;
+        return sign|(e+127)<<23|fra;
+    }else{
+        int shift=e-23;
+        unsigned kept=co>>shift;
+        unsigned lost=co&((1u<<shift)-1);
+        unsigned half=1u<<(shift-1);
+        if(lost>half)kept=kept+1;
+        if(lost==half){
+            if(kept&1)kept=kept+1;
+        }
+        return sign|(((e+126)<<23)+kept);
+    }
 }
 
 /*
@@ -139,7 +207,16 @@ unsigned float_i2f(int x) {
  *   Difficulty: 4
  */
 unsigned floatScale2(unsigned uf) {
-    return 2;
+    unsigned sign = uf & 0x80000000;
+    unsigned exponent = uf & 0x7F800000;
+    unsigned fraction = uf & 0x7FFFFF;
+
+    if (exponent == 0x7F800000) return uf;
+    if (!exponent) return sign | (fraction << 1);
+
+    exponent = exponent + 0x800000;
+    if (exponent == 0x7F800000) fraction = 0;
+    return sign | exponent | fraction;
 }
 
 /*
@@ -156,7 +233,21 @@ unsigned floatScale2(unsigned uf) {
  *   Difficulty: 3
  */
 int float64_f2i(unsigned uf1, unsigned uf2) {
-    return 2;
+    int e = (uf2 >> 20) & 0x7FF;
+    unsigned sign = uf2 >> 31;
+    unsigned total;
+    int res;
+
+    e = e - 1023;
+    if (e < 0) return 0;
+    /* INT_MIN has the same encoding as the overflow sentinel. */
+    if (e >= 31) return 0x80000000;
+
+    /* Keep the leading 32 significand bits, including the implicit 1. */
+    total = (((uf2 & 0xFFFFF) | 0x100000) << 11) | (uf1 >> 21);
+    res = total >> (31 - e);
+    if (sign) return -res;
+    return res;
 }
 
 /*
@@ -173,5 +264,8 @@ int float64_f2i(unsigned uf1, unsigned uf2) {
  *   Difficulty: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+    if (x < -149) return 0;
+    if (x < -126) return 1u << (x + 149);
+    if (x > 127) return 0x7F800000;
+    return (x + 127) << 23;
 }
